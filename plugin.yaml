@@ -1,0 +1,16 @@
+schema: mcpg.dev/plugin/v1
+id: dev.mcpg.watch.file
+name: Filesystem Watch Strategy
+license: Apache-2.0
+description: |
+  A watch_strategy that emits a resource-change tick when a watched path (file
+  or directory) changes — create / modify / remove by default — so the gateway
+  re-reads / re-notifies a file-backed resource on disk changes. Backed by the
+  OS native notifier (inotify / kqueue / ReadDirectoryChanges). Each watcher
+  runs a native background thread until cancelled. The per-watch spec selects
+  the path, recursion, and which event categories tick. Reads only the
+  operator-configured path; no network.
+class: watch_strategy
+runtime: native-cdylib-v1
+protocol_version: "1.0"
+required_capabilities: []
