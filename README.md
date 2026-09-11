@@ -36,7 +36,7 @@ plugins:
   - id: dev.mcpg.watch.file
     class: watch_strategy
     source:
-      oci: ghcr.io/mcpg-dev/source-code/plugins/watch-file:protocol-1
+      oci: ghcr.io/mcpg-dev/plugins/watch-file
 ```
 
 Each resource that should tick on disk changes selects it under
