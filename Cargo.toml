@@ -1,20 +1,25 @@
 [package]
 name = "mcpg-plugin-watch-file"
-version = "0.1.0-alpha.42"
+version = "0.1.0-alpha.43"
 license = "Apache-2.0"
 edition = "2024"
-description = "Filesystem watch_strategy plugin for MCPG (dev.mcpg.watch.file) — resource-change ticks on path create/modify/remove."
+description = "Filesystem watch_strategy plugin for MCPG (dev.mcpg.watch.file) — resource-change ticks on path create/modify/remove, file_tail (each appended line as an MCP Event) and file_objects (each created, modified or deleted file)."
 
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-mcpg-plugin-protocol = { git = "https://github.com/mcpg-dev/mcpg-plugin-protocol", tag = "v0.1.0-beta.39", version = "=0.1.0-beta.39" }
-mcpg-plugin-sdk = { git = "https://github.com/mcpg-dev/mcpg-plugin-sdk", tag = "v0.1.0-beta.40", version = "=0.1.0-beta.40", features = ["static-firstparty"] }
+mcpg-plugin-protocol = { git = "https://github.com/mcpg-dev/mcpg-plugin-protocol", tag = "v0.1.0-beta.40", version = "=0.1.0-beta.40" }
+mcpg-plugin-sdk = { git = "https://github.com/mcpg-dev/mcpg-plugin-sdk", tag = "v0.1.0-beta.41", version = "=0.1.0-beta.41", features = ["static-firstparty"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 notify = "8"
 tracing = "0.1"
+glob = "0.3"
+blake3 = "1"
+
+[dev-dependencies]
+tempfile = "3"
 
 [features]
 default = []

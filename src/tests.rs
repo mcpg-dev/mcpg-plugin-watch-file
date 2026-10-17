@@ -12,8 +12,44 @@ use mcpg_plugin_sdk::ffi::{SyncWatchStrategyPlugin, WatchHandleBox};
 use serde_json::{Value, json};
 
 use super::{
-    FileEventKind, FileWatchPlugin, PLUGIN_ID, WATCH_KIND, default_event_kinds, event_is_relevant,
+    FILE_CREATED_EVENT_TYPE, FILE_MODIFIED_EVENT_TYPE, FILE_REMOVED_EVENT_TYPE, FileEventKind,
+    FileWatchPlugin, PLUGIN_ID, WATCH_KIND, change_event, default_event_kinds, event_is_relevant,
 };
+
+#[test]
+fn each_change_kind_is_its_own_event_type_with_the_paths() {
+    let cases = [
+        (
+            EventKind::Create(CreateKind::File),
+            Some(FILE_CREATED_EVENT_TYPE),
+        ),
+        (
+            EventKind::Modify(ModifyKind::Any),
+            Some(FILE_MODIFIED_EVENT_TYPE),
+        ),
+        (EventKind::Any, Some(FILE_MODIFIED_EVENT_TYPE)),
+        (
+            EventKind::Remove(RemoveKind::File),
+            Some(FILE_REMOVED_EVENT_TYPE),
+        ),
+        (EventKind::Access(AccessKind::Any), None),
+    ];
+    for (kind, expected) in cases {
+        let event = notify::Event::new(kind).add_path(PathBuf::from("/data/a.json"));
+        let watch_event = change_event(&event);
+        assert_eq!(
+            watch_event.as_ref().and_then(|e| e.event_type.as_deref()),
+            expected,
+            "{kind:?}"
+        );
+        if let Some(watch_event) = watch_event {
+            assert_eq!(
+                watch_event.data,
+                Some(json!({ "path": "/data/a.json", "paths": ["/data/a.json"] }))
+            );
+        }
+    }
+}
 
 type Sink = Arc<Mutex<Vec<String>>>;
 

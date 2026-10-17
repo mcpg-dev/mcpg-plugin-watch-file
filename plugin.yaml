@@ -3,14 +3,73 @@ id: dev.mcpg.watch.file
 name: Filesystem Watch Strategy
 license: Apache-2.0
 description: |
-  A watch_strategy that emits a resource-change tick when a watched path (file
-  or directory) changes — create / modify / remove by default — so the gateway
-  re-reads / re-notifies a file-backed resource on disk changes. Backed by the
-  OS native notifier (inotify / kqueue / ReadDirectoryChanges). Each watcher
-  runs a native background thread until cancelled. The per-watch spec selects
-  the path, recursion, and which event categories tick. Reads only the
-  operator-configured path; no network.
+  Three watch strategies over local files. `file` emits a change when a
+  watched path (file or directory) is created, modified or removed, backed by
+  the OS native notifier (inotify, FSEvents, ReadDirectoryChangesW).
+  `file_tail` emits each line appended to the files that globs match, follows
+  renames and rotation, and resumes per file after a restart. `file_objects`
+  reports each file globs match that was created, modified or deleted, as the
+  object.changed event every inventory strategy shares, and resumes exactly.
+  Reads only the operator-configured paths; no network.
 class: watch_strategy
 runtime: native-cdylib-v1
 protocol_version: "1.0"
 required_capabilities: []
+# MCP Events: how each watch runs as a source, and what it emits. A change
+# of a path has no history to resume from; a tail resumes at its offsets.
+watch_strategies:
+  - kind: file
+    placement: single_owner
+    resume: false
+    event_types:
+      - name: file.created
+        description: A path under the watched one was created.
+        payload_schema: { type: object, required: [paths], properties: { path: { type: [string, "null"] }, paths: { type: array, items: { type: string } } } }
+      - name: file.modified
+        description: A path under the watched one was modified.
+        payload_schema: { type: object, required: [paths], properties: { path: { type: [string, "null"] }, paths: { type: array, items: { type: string } } } }
+      - name: file.removed
+        description: A path under the watched one was removed.
+        payload_schema: { type: object, required: [paths], properties: { path: { type: [string, "null"] }, paths: { type: array, items: { type: string } } } }
+  # Lines appended to the files that globs match, resumed per file.
+  - kind: file_tail
+    placement: single_owner
+    resume: true
+    event_types:
+      - name: file.line
+        description: One line appended to a tailed file.
+        payload_schema:
+          type: object
+          required: [path, offset, line, lineEncoding]
+          properties:
+            path: { type: string }
+            offset: { type: integer, description: The byte offset of the line in the file. }
+            line:
+              description: The line, read as lineEncoding says.
+            lineEncoding:
+              description: How line holds the line - its JSON, its text, or base64 of its bytes.
+              enum: [json, text, base64]
+            truncated: { type: boolean, description: The line was longer than max_line_bytes and is cut there. }
+      - name: file.truncated
+        description: A tailed file was truncated or rewritten, and is read again from its start.
+        payload_schema: { type: object, required: [path], properties: { path: { type: string } } }
+  # The files globs match, as an inventory: each created, modified or
+  # deleted file, in the shape every inventory strategy shares.
+  - kind: file_objects
+    placement: single_owner
+    resume: true
+    event_types:
+      - name: object.changed
+        description: A file the globs match was created, modified or deleted.
+        payload_schema:
+          type: object
+          required: [op, store, location, key]
+          properties:
+            op: { enum: [created, modified, deleted] }
+            store: { type: string, description: The kind of store - file here. }
+            location: { type: string, description: The directory every pattern starts with. }
+            key: { type: string, description: The file's path relative to location. }
+            size: { type: integer }
+            modifiedAt: { type: string, description: When it last changed, RFC 3339. }
+            etag: { type: string }
+            version: { type: string, description: The file's identity - device and inode. }

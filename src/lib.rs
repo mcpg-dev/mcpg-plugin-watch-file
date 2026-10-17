@@ -68,6 +68,34 @@ fn event_is_relevant(kind: &EventKind, allowed: &[FileEventKind]) -> bool {
     }
 }
 
+/// The event type of a created path.
+pub const FILE_CREATED_EVENT_TYPE: &str = "file.created";
+/// The event type of a modified path.
+pub const FILE_MODIFIED_EVENT_TYPE: &str = "file.modified";
+/// The event type of a removed path.
+pub const FILE_REMOVED_EVENT_TYPE: &str = "file.removed";
+
+/// The MCP Events event of one filesystem change; `None` for an access,
+/// which no event type carries.
+fn change_event(event: &Event) -> Option<WatchEvent> {
+    let event_type = match event.kind {
+        EventKind::Create(_) => FILE_CREATED_EVENT_TYPE,
+        EventKind::Remove(_) => FILE_REMOVED_EVENT_TYPE,
+        EventKind::Modify(_) | EventKind::Any => FILE_MODIFIED_EVENT_TYPE,
+        EventKind::Access(_) | EventKind::Other => return None,
+    };
+    let paths: Vec<String> = event
+        .paths
+        .iter()
+        .map(|p| p.display().to_string())
+        .collect();
+    Some(WatchEvent {
+        event_type: Some(event_type.to_owned()),
+        data: Some(serde_json::json!({ "path": paths.first(), "paths": paths })),
+        ..WatchEvent::default()
+    })
+}
+
 /// Boxed behind the opaque [`WatchHandleBox`]; dropping it stops the native
 /// watcher (and its background thread) synchronously.
 struct FileWatchState {
@@ -103,7 +131,7 @@ impl SyncWatchStrategyPlugin for FileWatchPlugin {
 
     fn watch(
         &self,
-        _resource_uri: &str,
+        resource_uri: &str,
         spec: &Value,
         emit_event: Box<dyn Fn(&str) + Send + Sync + 'static>,
     ) -> Result<WatchHandleBox, WatchError> {
@@ -122,12 +150,19 @@ impl SyncWatchStrategyPlugin for FileWatchPlugin {
             serde_json::to_string(&WatchEvent::default()).unwrap_or_else(|_| "{}".to_owned());
         // notify's handler is FnMut; share the host's `Fn` callback behind an Arc.
         let emit = Arc::new(emit_event);
+        let event_source = mcpg_plugin_protocol::is_event_source(resource_uri);
 
         let mut watcher = recommended_watcher(move |res: notify::Result<Event>| {
             if let Ok(event) = res
                 && event_is_relevant(&event.kind, &allowed)
             {
-                emit(&tick);
+                if !event_source {
+                    emit(&tick);
+                } else if let Some(json) =
+                    change_event(&event).and_then(|e| serde_json::to_string(&e).ok())
+                {
+                    emit(&json);
+                }
             }
         })
         .map_err(|e| WatchError::Subscribe {
@@ -171,8 +206,21 @@ mcpg_plugin_sdk::declare_plugin! {
             plugin_type: FileWatchPlugin,
             factory: |cfg: &str, _host: ::mcpg_plugin_sdk::HostHandle| FileWatchPlugin::from_config_json(cfg),
         },
+        watch_strategy as watch_tail {
+            inner_name: "watch-tail",
+            plugin_type: tail::FileTailPlugin,
+            factory: |cfg: &str, _host: ::mcpg_plugin_sdk::HostHandle| tail::FileTailPlugin::from_config_json(cfg),
+        },
+        watch_strategy as watch_objects {
+            inner_name: "watch-objects",
+            plugin_type: objects::FileObjectsPlugin,
+            factory: |cfg: &str, _host: ::mcpg_plugin_sdk::HostHandle| objects::FileObjectsPlugin::from_config_json(cfg),
+        },
     ],
 }
+
+pub mod objects;
+pub mod tail;
 
 #[cfg(test)]
 mod tests;
