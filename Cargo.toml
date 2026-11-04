@@ -1,6 +1,6 @@
 [package]
 name = "mcpg-plugin-watch-file"
-version = "0.1.0-rc.5"
+version = "0.1.0"
 license = "Apache-2.0"
 edition = "2024"
 description = "Filesystem watch_strategy plugin for MCPG (dev.mcpg.watch.file) — resource-change ticks on path create/modify/remove, file_tail (each appended line as an MCP Event) and file_objects (each created, modified or deleted file)."
