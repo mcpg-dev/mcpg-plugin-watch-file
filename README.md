@@ -186,10 +186,10 @@ restart records an upstream gap and takes the files it finds as its new
 baseline.
 
 ## Change-watching
-The gateway starts one watcher per resource URI when a session first calls
-`resources/subscribe` on it, shares that watcher across every later subscriber,
-and cancels it when the last subscriber goes away — an unsubscribed resource
-holds no filesystem watch.
+The gateway starts one watcher per resource URI when a `subscriptions/listen`
+stream first names it in `resourceSubscriptions`, shares that watcher across
+every later subscriber, and cancels it when the last such stream closes — an
+unsubscribed resource holds no filesystem watch.
 
 A tick carries no principal and no session: it says the resource changed, not
 who changed it. The gateway turns each tick into
